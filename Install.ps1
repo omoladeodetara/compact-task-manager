@@ -36,10 +36,11 @@ foreach ($directory in @((Join-Path $env:ProgramFiles 'CompactTaskManager'), $in
     Set-Acl -LiteralPath $directory -AclObject $acl
 }
 New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
-foreach ($file in @('Start-CompactTaskManager.ps1', 'Common.ps1')) {
+foreach ($file in @('Start-CompactTaskManager.ps1', 'Common.ps1', 'Diagnostics.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot "src\$file") -Destination (Join-Path $installRoot $file) -Force
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall.ps1') -Destination (Join-Path $installRoot 'Uninstall.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Diagnose.ps1') -Destination (Join-Path $installRoot 'Diagnose.ps1') -Force
 if (!(Test-Path -LiteralPath (Join-Path $dataRoot 'config.json'))) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'config.example.json') -Destination (Join-Path $dataRoot 'config.json')
 }

@@ -1,6 +1,6 @@
 # Contributing
 
-Small pull requests are welcome. Describe the Windows build and scaling used for UI changes. Keep configuration declarative, do not add remote downloads or telemetry, and never commit actual user settings, screenshots, logs, or UI dumps.
+Small pull requests are welcome. Describe the Windows build and scaling used for UI changes. Keep configuration declarative, do not add remote downloads or telemetry, and never commit actual user settings, logs, or UI dumps. Documentation screenshots must be explicitly reviewed and limited to the widget, without personal desktop content.
 
 Run `tests/Test.ps1` in Windows PowerShell 5.1. Automated tests do not cover interactive desktop behavior.
 

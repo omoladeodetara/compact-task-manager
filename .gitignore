@@ -2,6 +2,8 @@ config.json
 position.json
 *.log
 *.png
+!docs/images/summary-dark.png
+!docs/images/cpu-memory-detail.png
 *settings*.json
 controls.txt
 menu.txt

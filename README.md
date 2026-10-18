@@ -4,6 +4,62 @@ Open Windows 11 Task Manager automatically in **dark Performance Summary view** 
 
 No downloads beyond this project, no telemetry, no resident helper. A Windows scheduled task opens Task Manager, locates the CPU sidebar through accessibility, double-clicks it, positions the compact window, and exits.
 
+## Screenshots
+
+Actual Windows 11 Task Manager in dark Summary view. Only the widget's client area is captured; no desktop or other applications are included. Hardware and readings are illustrative and will differ on your PC. These images show the working original helper, not a claim of installer verification on every supported configuration.
+
+![Dark compact Task Manager showing CPU, memory, disks, Ethernet, and GPU graphs](docs/images/summary-dark.png)
+
+<details>
+<summary>CPU and memory close-up</summary>
+
+![CPU and memory graphs in dark Summary view](docs/images/cpu-memory-detail.png)
+
+</details>
+
+## Diagnose with one command
+
+From this checkout, run:
+
+```powershell
+.\Diagnose.ps1
+```
+
+The command is **read-only**: it does not install, elevate, change settings, start tasks, or move windows. It prints one JSON object with `schemaVersion`, `status`, `compatibility`, `installation`, `lastRun`, `errors`, and `nextAction`. It normally runs without administrator privileges. Use 64-bit Windows PowerShell 5.1 for the full supported check; other environments are reported rather than installed into.
+
+An agent can consume the result directly:
+
+```powershell
+$report = .\Diagnose.ps1 | ConvertFrom-Json
+$report.status
+$report.nextAction.code
+$report.nextAction.message
+```
+
+Key outcomes:
+
+| Status | What to do next |
+| --- | --- |
+| `unsupported` / `wrong_shell` | Use the supported Windows platform / native Windows PowerShell. |
+| `not_installed` / `partial_installation` | Review and install or repair with human-approved administrator privileges. |
+| `legacy_installation` | Review the original personal helper before adding another startup task. |
+| `invalid_configuration` / `disabled` | Fix the config or enable the task, as requested by the user. |
+| `running` / `not_tested` | Wait for completion, or run the task once, then diagnose again. |
+| `failed` / `unverified` | Inspect the local log or obtain a matching fresh run. |
+| `healthy` | The latest completed task and matching log agree on success. Visually verify the widget. |
+| `unknown` | One or more checks failed; inspect the error codes before drawing conclusions. |
+
+`nextAction` includes a stable `code`, a human-readable `message`, and `requiresElevation`. These are recommendations, not authorization for an agent to act. `visualVerification` is always `not_performed`: the command does not inspect pixels or claim to have tested sign-in. A previous successful run does not prove the widget is currently visible.
+
+Exit code `0` means the diagnostic checks completed, **not** that the installation is healthy. Exit code `1` means a check failed. Parse `status` for application health. Raw logs, account names, SIDs, and personal paths are not emitted; OS/architecture and task result information are included.
+
+New installations also include the command in the installed directory:
+
+```powershell
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+& "$env:ProgramFiles\CompactTaskManager\$sid\Diagnose.ps1"
+```
+
 ## Can my AI agent set this up?
 
 **Yes, if it can run local commands on your Windows PC.** Installation and removal use PowerShell scripts, preferences use JSON, and verification uses Task Scheduler and a local log. No particular AI provider or model is required.
@@ -16,7 +72,7 @@ You can give your agent this prompt:
 
 ### Agent setup checklist
 
-1. **Check the environment.** Use the compatibility table below. Installation requires native 64-bit Windows PowerShell 5.1, not merely any shell named PowerShell. Elevate as the intended Windows user, not a different administrator account.
+1. **Check the environment.** Run `Diagnose.ps1` and read its JSON report, then use the compatibility table below. Installation requires native 64-bit Windows PowerShell 5.1, not merely any shell named PowerShell. Elevate as the intended Windows user, not a different administrator account.
 2. **Inspect before running.** Read `Install.ps1`, `src/Start-CompactTaskManager.ps1`, `src/Common.ps1`, and `Uninstall.ps1`. Run `tests/Test.ps1`; these checks do not install anything or exercise the desktop.
 3. **Check for an existing setup.** Inspect this user's `Compact Task Manager (<SID>)` task and configuration. Reinstallation updates the installed scripts and task, but preserves an existing `config.json`. Do not create additional startup shortcuts or unrelated tasks.
 4. **Install with user authorization.** Follow the installation section. `-StartNow` starts the task asynchronously; installer success alone does not prove the widget opened. The task closes and reopens Task Manager to apply its settings. Never interact with UAC prompts on the user's behalf, disable UAC, or weaken execution policies to finish setup.
@@ -150,7 +206,7 @@ The helper finds controls by automation ID, verifies the click target's process,
 
 Tests cover PowerShell syntax, config validation, and placement on screens with negative coordinates or insufficient room. GitHub Actions runs these checks on Windows. CI does **not** validate desktop clicks or install elevated tasks; use the [manual test checklist](CONTRIBUTING.md) for those.
 
-No screenshots, UI dumps, user settings, or logs are committed. The distributed helper does not capture screenshots or send network requests.
+Only the reviewed documentation screenshots in `docs/images/` are committed. UI dumps, user settings, logs, and other captures remain excluded. The distributed helper and diagnostic command do not capture screenshots or send network requests.
 
 ## License
 

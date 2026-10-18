@@ -11,7 +11,7 @@ if ($task) {
 }
 $installRoot = Join-Path $env:ProgramFiles "CompactTaskManager\$sid"
 # Only remove our known files. Preserve config, backups, logs, and unrelated files.
-foreach ($name in @('Start-CompactTaskManager.ps1', 'Common.ps1', 'Uninstall.ps1')) {
+foreach ($name in @('Start-CompactTaskManager.ps1', 'Common.ps1', 'Diagnostics.ps1', 'Diagnose.ps1', 'Uninstall.ps1')) {
     $path = Join-Path $installRoot $name
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path }
 }
