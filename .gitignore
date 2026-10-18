@@ -1,0 +1,10 @@
+config.json
+position.json
+*.log
+*.png
+*settings*.json
+controls.txt
+menu.txt
+*-result.txt
+*.lnk
+dist/
