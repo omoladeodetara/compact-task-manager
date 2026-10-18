@@ -95,6 +95,10 @@ def diagnose(system):
                    "desktop": desktop_available(system), "installed": installed,
                    "dependencies": all(deps.values()), "startupMatches": startup_matches,
                    "configValid": config_valid, "runtime": runtime}
+    sensors = None
+    if system == "Darwin":
+        from .mac_sensors import snapshot
+        sensors = snapshot()
     status, action = decision(observation)
     emit({"schemaVersion": 1, "backend": "portable-widget", "checkedAt": time.time(), "status": status,
           "compatibility": {"platform": system, "architecture": platform.machine(), "python": platform.python_version(),
@@ -103,8 +107,9 @@ def diagnose(system):
           "installation": {"filesPresent": installed, "startupEntryMatches": startup_matches,
                            "configurationValid": config_valid}, "lastRun": runtime,
           "capabilities": {"cpu": True, "memory": True, "diskIO": True, "networkIO": True,
-                           "gpu": "optional_nvidia_smi" if system == "Linux" else "unavailable"},
-          "visualVerification": "not_performed", "errors": errors, "nextAction": action})
+                           "swap": system == "Darwin", "memoryPressure": "optional_macos_sysctl" if system == "Darwin" else "unavailable",
+                           "gpu": "optional_macos_ioreg" if system == "Darwin" else ("optional_nvidia_smi" if system == "Linux" else "unavailable")},
+          "sensors": sensors, "visualVerification": "not_performed", "errors": errors, "nextAction": action})
     return 1 if errors else 0
 
 

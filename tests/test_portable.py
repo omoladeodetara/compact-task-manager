@@ -88,7 +88,7 @@ class PortableTests(unittest.TestCase):
 
     def test_real_metrics_are_bounded(self):
         import psutil
-        sampler = Sampler(psutil, "Darwin")  # Never calls a GPU vendor utility in tests.
+        sampler = Sampler(psutil, "Windows")  # Test shared counters without vendor utilities.
         rows = sampler.sample()
         self.assertEqual([r[0] for r in rows], ["CPU", "Memory", "Disk I/O", "Network", "GPU"])
         self.assertTrue(0 <= rows[0][1] <= 100)

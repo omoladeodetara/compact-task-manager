@@ -3,7 +3,7 @@
 Compact dark performance graphs that open after signing in, with **AI-friendly setup and JSON diagnostics** on Windows, macOS, and Linux.
 
 - **Windows:** opens native Task Manager in Performance Summary view. The existing PowerShell backend is unchanged.
-- **macOS / Linux:** runs a small Tk monitoring app with CPU, memory, aggregate disk I/O, and network graphs. Linux optionally reads NVIDIA GPU utilization through an existing `nvidia-smi`; other GPUs are explicitly shown as unavailable. It does not automate Activity Monitor or a Linux system-monitor app.
+- **macOS / Linux:** runs a small Tk monitoring app with CPU, memory, aggregate disk I/O, and network graphs. Linux optionally reads NVIDIA GPU utilization through an existing `nvidia-smi`; macOS optionally reads GPU utilization from IOKit driver statistics and shows memory pressure and swap usage. Missing sensors are explicitly shown as unavailable. It does not automate Activity Monitor or a Linux system-monitor app.
 - No telemetry. The portable installer downloads `psutil` into a private virtual environment; the portable widget remains running to collect metrics. The Windows helper exits after opening Task Manager.
 
 The portable backend is experimental. CI tests its logic and metrics on macOS/Linux/Windows, plus a real Linux GUI lifecycle under Xvfb. macOS visual appearance, actual login startup, and every Linux compositor still require manual validation.
@@ -157,7 +157,7 @@ A completed fresh run with result `0` and a matching `SUCCESS` log means the hel
 | Linux desktop with Python 3.10+, Tk, X11/XWayland | Experimental portable widget; CI logic/metrics and real Xvfb GUI lifecycle tests. Actual desktop/login validation still needed. |
 | WSL, Windows Server, or headless environments | Unsupported deployment environments for this desktop helper. |
 
-CPU/memory/disk/network monitoring is shared across the portable platforms. GPU parity is incomplete: this release supports optional Linux NVIDIA utilization but not Apple Silicon, AMD, or Intel GPU sensors. Missing GPU data is labeled unavailable, never fabricated.
+CPU/memory/disk/network monitoring is shared across the portable platforms. GPU parity is incomplete: this release supports optional Linux NVIDIA utilization and macOS driver utilization when exposed by IOKit. Availability is probed, never inferred from the model name. Missing GPU data is labeled unavailable, never fabricated.
 
 ## Windows requirements
 
@@ -268,3 +268,13 @@ Only the reviewed documentation screenshots in `docs/images/` are committed. UI 
 ## License
 
 [MIT](LICENSE).
+
+### Mac memory pressure, swap, and GPU sources
+
+The Mac widget shows **Pressure** as Normal (green), Warning (yellow), Critical (red), or Unavailable (gray). This reads the kernel notification level via `sysctl -n kern.memorystatus_vm_pressure_level`; it is categorical, not Activity Monitor's continuous graph or a percentage derived from RAM usage. The sysctl exports notification flags (1, 2, 4), not the internal kernel enum. See [Apple's implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_memorystatus_notify.c).
+
+**Swap** shows bytes used and currently allocated swap from `psutil.swap_memory()`. macOS can grow swap dynamically; allocated swap is not a fixed maximum. Its graph auto-scales bytes used.
+
+**GPU** reads `Device Utilization %` under `PerformanceStatistics` from `/usr/sbin/ioreg` (IOAccelerator, with IOGPU fallback). This is an optional driver property, not a guaranteed public sensor API. Zero is valid; missing or invalid data is unavailable. Multiple devices use the highest overall percentage. No administrator access, powermetrics, or additional package is required. Pressure and GPU refresh every five seconds in the worker. Diagnostics include a fresh `sensors` snapshot with sources and availability. GPU unavailability does not mean the computer lacks a GPU.
+
+Update an existing Mac installation by pulling and rerunning `python3 ctm.py install --start-now` with the Python version used for setup. Saved configuration is retained.

@@ -39,7 +39,8 @@ def run(p, smoke_seconds=None):
             root.configure(bg="#191919")
             root.resizable(False, False)
             root.attributes("-topmost", cfg["alwaysOnTop"])
-            width, height = cfg["width"], 440
+            row_count = 7 if platform.system() == "Darwin" else 5
+            width, height = cfg["width"], 35 + row_count * 81
             # Portable v0.2 uses primary-screen placement. Compositors may override it.
             x = root.winfo_screenwidth() - width - 24 if cfg["x"] is None else cfg["x"]
             y = 40 if cfg["y"] is None else cfg["y"]
@@ -48,7 +49,7 @@ def run(p, smoke_seconds=None):
             root.geometry("%dx%d+%d+%d" % (width, height, x, y))
             canvas = tk.Canvas(root, bg="#191919", highlightthickness=0, width=width, height=height)
             canvas.pack(fill="both", expand=True)
-            histories = [deque(maxlen=60) for _ in range(5)]
+            histories = [deque(maxlen=60) for _ in range(row_count)]
             updates = queue.Queue(maxsize=1)
 
             def sample_worker():
@@ -93,12 +94,16 @@ def run(p, smoke_seconds=None):
                     canvas.create_text(16, 24, anchor="nw", text="Sampling failed. Run diagnose.", fill="#ffffff")
                     return
                 canvas.delete("all")
-                colors = ("#58bbdf", "#ae87dd", "#8cbd73", "#db8b66", "#d983ca")
+                colors = ("#58bbdf", "#ae87dd", "#8cbd73", "#db8b66", "#d983ca", "#8cbd73", "#e1ba68")
                 for i, (name, value, detail, percent) in enumerate(item):
                     top = 12 + i * 81
                     graph_left, graph_top, graph_width, graph_height = 12, top + 7, 82, 54
                     canvas.create_rectangle(graph_left, graph_top, graph_left + graph_width,
                                             graph_top + graph_height, fill="#252525", outline="#606060")
+                    if name == "Pressure":
+                        color = {"Normal": "#8cbd73", "Warning": "#e1ba68", "Critical": "#ef7676"}.get(detail, "#999999")
+                        canvas.create_oval(graph_left + 28, graph_top + 14, graph_left + 54,
+                                           graph_top + 40, fill=color, outline=color)
                     histories[i].append(value)
                     valid = [v for v in histories[i] if v is not None]
                     ceiling = 100 if percent else max([1] + valid)

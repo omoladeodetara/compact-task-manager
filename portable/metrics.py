@@ -2,6 +2,7 @@
 import shutil
 import subprocess
 import time
+from . import mac_sensors
 
 
 def rate(current, previous, elapsed):
@@ -23,6 +24,9 @@ def human_bytes(value):
 class Sampler:
     def __init__(self, psutil, system):
         self.ps = psutil
+        self.system = system
+        self.pressure = None
+        self.mac_sampled = None
         self.previous = None
         self.ps.cpu_percent(None)  # Discard the meaningless first nonblocking result.
         self.nvidia = shutil.which("nvidia-smi") if system == "Linux" else None
@@ -32,6 +36,10 @@ class Sampler:
     def sample(self):
         now = time.monotonic()
         memory = self.ps.virtual_memory()
+        if self.system == "Darwin" and (self.mac_sampled is None or now - self.mac_sampled >= 5):
+            self.pressure = mac_sensors.read_pressure()
+            self.gpu = mac_sensors.read_gpu()
+            self.mac_sampled = now
         try:
             disk = self.ps.disk_io_counters()
         except (OSError, self.ps.Error):
@@ -61,10 +69,21 @@ class Sampler:
                 self.gpu = max(values) if values and all(0 <= v <= 100 for v in values) else None
             except (OSError, ValueError, subprocess.SubprocessError):
                 self.gpu = None
-        return [
+        rows = [
             ("CPU", self.ps.cpu_percent(None), "System utilization", True),
             ("Memory", memory.percent, human_bytes(memory.total - memory.available) + " / " + human_bytes(memory.total), True),
             ("Disk I/O", disk_rate, human_bytes(disk_rate) + ("/s total read + write" if disk_rate is not None else ""), False),
             ("Network", net_rate, human_bytes(net_rate) + ("/s total send + receive" if net_rate is not None else ""), False),
-            ("GPU", self.gpu, "Peak NVIDIA GPU utilization" if self.gpu is not None else "No supported GPU sensor", True),
+            ("GPU", self.gpu, ("Driver GPU utilization" if self.system == "Darwin" else "Peak NVIDIA GPU utilization") if self.gpu is not None else "GPU reading unavailable", True),
         ]
+        if self.system == "Darwin":
+            try:
+                swap = self.ps.swap_memory()
+                swap_value = swap.used
+                swap_detail = human_bytes(swap.used) + " used / " + human_bytes(swap.total) + " allocated"
+            except (OSError, self.ps.Error):
+                swap_value, swap_detail = None, "Swap reading unavailable"
+            # Pressure is categorical; never present it as a made-up percentage.
+            rows.extend([("Pressure", None, self.pressure or "Unavailable", False),
+                         ("Swap", swap_value, swap_detail, False)])
+        return rows

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- macOS memory pressure, swap usage, optional IOKit GPU utilization, and live sensor availability in JSON diagnostics.
+
 - Experimental macOS/Linux dark monitoring widget with user-only LaunchAgent/XDG startup, a private Python environment, and no telemetry.
 - Shared `ctm.py` lifecycle/JSON diagnostics entry point; Windows delegates to the existing native backend.
 - Real CPU/memory/disk/network samples; optional Linux NVIDIA GPU readings with explicit unavailable states elsewhere.
