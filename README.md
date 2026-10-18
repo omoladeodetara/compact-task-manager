@@ -4,6 +4,57 @@ Open Windows 11 Task Manager automatically in **dark Performance Summary view** 
 
 No downloads beyond this project, no telemetry, no resident helper. A Windows scheduled task opens Task Manager, locates the CPU sidebar through accessibility, double-clicks it, positions the compact window, and exits.
 
+## Can my AI agent set this up?
+
+**Yes, if it can run local commands on your Windows PC.** Installation and removal use PowerShell scripts, preferences use JSON, and verification uses Task Scheduler and a local log. No particular AI provider or model is required.
+
+This is currently **scriptable, not fully unattended**. An agent running without administrator privileges needs you to approve elevation or run the installation command yourself. The widget also needs an unlocked Windows desktop. A cloud-only agent, a headless CI runner, or an agent without access to your PC cannot complete the desktop setup by itself.
+
+You can give your agent this prompt:
+
+> Set up Compact Task Manager from https://github.com/omoladeodetara/compact-task-manager on this PC. Read its README and scripts first. Check Windows version, architecture, PowerShell version, and whether your session has administrator privileges. Use the default upper-right position unless I specify another. Run the tests, then install for my Windows account. Let me approve any required administrator prompt; do not bypass security controls. Verify a fresh scheduled run and, if you can inspect the desktop, confirm dark Performance Summary view. Tell me what you verified, what remains untested, and how to uninstall it.
+
+### Agent setup checklist
+
+1. **Check the environment.** Use the compatibility table below. Installation requires native 64-bit Windows PowerShell 5.1, not merely any shell named PowerShell. Elevate as the intended Windows user, not a different administrator account.
+2. **Inspect before running.** Read `Install.ps1`, `src/Start-CompactTaskManager.ps1`, `src/Common.ps1`, and `Uninstall.ps1`. Run `tests/Test.ps1`; these checks do not install anything or exercise the desktop.
+3. **Check for an existing setup.** Inspect this user's `Compact Task Manager (<SID>)` task and configuration. Reinstallation updates the installed scripts and task, but preserves an existing `config.json`. Do not create additional startup shortcuts or unrelated tasks.
+4. **Install with user authorization.** Follow the installation section. `-StartNow` starts the task asynchronously; installer success alone does not prove the widget opened. The task closes and reopens Task Manager to apply its settings. Never interact with UAC prompts on the user's behalf, disable UAC, or weaken execution policies to finish setup.
+5. **Verify a fresh run.** Wait for the task to finish, then inspect its Last Run Time, Last Run Result, and the timestamped log. Confirm the results belong to the run you just requested. If desktop inspection is available, verify dark Summary view and placement as well. Otherwise explicitly report that visual appearance was not verified.
+6. **Report the result.** Give the user the task name, config location, observed result, and uninstall command. Keep personal paths, logs, settings backups, and screenshots out of public commits and issue reports.
+
+These are read-only verification commands, run after the task finishes:
+
+```powershell
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$task = Get-ScheduledTask -TaskName "Compact Task Manager ($sid)"
+$info = $task | Get-ScheduledTaskInfo
+[pscustomobject]@{
+    TaskName = $task.TaskName
+    State = [string]$task.State
+    LastRunTime = $info.LastRunTime
+    LastTaskResult = $info.LastTaskResult
+} | ConvertTo-Json
+Get-Content -LiteralPath "$env:USERPROFILE\CompactTaskManager\last-run.log"
+```
+
+A completed fresh run with result `0` and a matching `SUCCESS` log means the helper's checks passed. This does not replace visual verification or prove the next sign-in has been tested. Never describe a queued or still-running task as a successful installation test.
+
+## Does it work across operating systems?
+
+**No. This implementation automates Windows Task Manager; it is not a cross-platform system monitor.** It depends on Windows Task Scheduler, Windows UI Automation, Win32 window/input APIs, and Task Manager's settings and controls. Installing PowerShell on another OS does not provide those components.
+
+| Platform | Status |
+| --- | --- |
+| Windows 11 22H2 or newer, x64 | Intended target. Original workflow tested on build 26200; generalized installer and other builds need further testing. |
+| Windows 11 ARM64 | Not verified or supported by this release. |
+| Windows 10 and older | Unsupported; the legacy Task Manager has different UI and theme behavior. |
+| macOS | Unsupported. Activity Monitor would require a separate implementation. |
+| Linux | Unsupported. Monitoring UI and startup integration would require a separate implementation. |
+| WSL, Windows Server, or headless environments | Unsupported deployment environments for this desktop helper. |
+
+Agents can help adapt the idea to another OS, but that would be new development—not an installation option this repository already provides.
+
 ## Requirements
 
 - Windows 11 22H2 or newer, x64, with the modern Task Manager.
