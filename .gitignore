@@ -10,3 +10,7 @@ menu.txt
 *-result.txt
 *.lnk
 dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

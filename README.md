@@ -1,8 +1,56 @@
 # Compact Task Manager
 
-Open Windows 11 Task Manager automatically in **dark Performance Summary view** after signing in. CPU, memory, disks, network, and GPU graphs stay in a small, always-on-top window.
+Compact dark performance graphs that open after signing in, with **AI-friendly setup and JSON diagnostics** on Windows, macOS, and Linux.
 
-No downloads beyond this project, no telemetry, no resident helper. A Windows scheduled task opens Task Manager, locates the CPU sidebar through accessibility, double-clicks it, positions the compact window, and exits.
+- **Windows:** opens native Task Manager in Performance Summary view. The existing PowerShell backend is unchanged.
+- **macOS / Linux:** runs a small Tk monitoring app with CPU, memory, aggregate disk I/O, and network graphs. Linux optionally reads NVIDIA GPU utilization through an existing `nvidia-smi`; other GPUs are explicitly shown as unavailable. It does not automate Activity Monitor or a Linux system-monitor app.
+- No telemetry. The portable installer downloads `psutil` into a private virtual environment; the portable widget remains running to collect metrics. The Windows helper exits after opening Task Manager.
+
+The portable backend is experimental. CI tests its logic and metrics on macOS/Linux/Windows, plus a real Linux GUI lifecycle under Xvfb. macOS visual appearance, actual login startup, and every Linux compositor still require manual validation.
+
+## Quick start by platform
+
+Clone or download this repository first. Inspect the scripts before installing.
+
+| Platform | Diagnose (read-only) | Install | Start / remove |
+| --- | --- | --- | --- |
+| Windows 11 x64 | `.\Diagnose.ps1` | `.\Install.ps1 -StartNow` from elevated 64-bit Windows PowerShell | Run the scheduled task / `.\Uninstall.ps1` |
+| macOS | `python3 ctm.py diagnose` | `python3 ctm.py install --start-now` as your normal user | `python3 ctm.py start` / `python3 ctm.py uninstall` |
+| Linux desktop | `python3 ctm.py diagnose` | `python3 ctm.py install --start-now` as your normal user | `python3 ctm.py start` / `python3 ctm.py uninstall` |
+
+With Python available on Windows, `python ctm.py diagnose`, `install`, and `uninstall` delegate to the existing PowerShell scripts. They do not bypass Windows elevation. Python is not required for the native Windows commands.
+
+### macOS and Linux requirements
+
+- Python **3.10+**, Tkinter, and `venv` support. Diagnostics work before installing `psutil`.
+- macOS: use a Python distribution with Aqua Tk support, such as the [python.org installer](https://www.python.org/download/mac/tcltk/). Run from your logged-in graphical session, not an SSH-only session.
+- Linux: use a graphical desktop implementing [XDG autostart](https://specifications.freedesktop.org/autostart/latest/), with X11 or XWayland (`DISPLAY`). Wayland-only sessions without XWayland are not supported by this Tk backend. Your distribution may package Tk/venv separately (for example `python3-tk` and `python3-venv` on Debian/Ubuntu); the installer does not run a system package manager for you.
+- Run installation **without sudo**. The portable backend refuses root installation and needs no Accessibility, Screen Recording, or administrator permissions.
+- `install` creates a private virtual environment, installs `psutil>=7.2,<8`, copies only project source files, preserves existing configuration, and writes one per-user startup entry. Downloads occur only during an explicit install/update.
+- On macOS it writes a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) limited to Aqua sessions. On Linux it writes an XDG `.desktop` entry. Both take effect at the next graphical login. `--start-now` separately requests a current-session launch; verify it with diagnostics rather than treating process launch as success.
+
+Run these again to update an existing portable installation. Installation is repeatable, preserves preferences, and stops the old widget before replacing its code; use `--start-now` to reopen it immediately. Uninstall disables this project's startup entry and stops only a process whose PID, creation time, and application command match. It retains configuration, local state, and cached runtime files; it does not remove Python or system packages.
+
+### Portable configuration and diagnostics
+
+Portable files live under:
+
+- macOS: `~/Library/Application Support/CompactTaskManager/`.
+- Linux: `${XDG_DATA_HOME:-~/.local/share}/compact-task-manager/`; startup uses `${XDG_CONFIG_HOME:-~/.config}/autostart/`.
+
+Edit `config.json` there (the Windows configuration below uses a different schema):
+
+```json
+{"width": 330, "x": null, "y": null, "alwaysOnTop": true, "intervalSeconds": 1}
+```
+
+The widget saves its position when closed. Initial position is clamped to the primary screen; exact multi-monitor positioning and always-on-top behavior depend on the window manager. Disk/network graphs show total throughput and auto-scale; unavailable readings are not displayed as zero.
+
+`python3 ctm.py diagnose` returns the same top-level contract as Windows: `schemaVersion`, `status`, `compatibility`, `installation`, `lastRun`, `errors`, `nextAction`, and `visualVerification`. Fields inside the platform-specific sections differ. Portable diagnostics also report `backend` and `capabilities`.
+
+An agent should parse `status` and `nextAction.code`. Portable statuses include `unsupported`, `unknown`, `missing_dependency`, `headless`, `not_installed`, `partial_installation`, `invalid_configuration`, `healthy`, `failed`, and `not_running`. `healthy` requires a matching live process **and** a recent heartbeat written after actual samples were drawn. A stale PID file alone never counts as success. Diagnostics do not open a test window, download dependencies, enable startup, or inspect pixels. `desktopSessionHint` is only a hint, not proof of display access. `startupEntryMatches` verifies the file, not that macOS Login Items or your desktop policy will allow it at login.
+
+For every backend, exit code 0 means the checks completed, not necessarily that the widget is healthy. Exit code 1 indicates a check/command failure. Do not claim login behavior or visual appearance was verified by diagnostics alone.
 
 ## Screenshots
 
@@ -17,7 +65,7 @@ Actual Windows 11 Task Manager in dark Summary view. Only the widget's client ar
 
 </details>
 
-## Diagnose with one command
+## Windows diagnostic command
 
 From this checkout, run:
 
@@ -62,15 +110,15 @@ $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 
 ## Can my AI agent set this up?
 
-**Yes, if it can run local commands on your Windows PC.** Installation and removal use PowerShell scripts, preferences use JSON, and verification uses Task Scheduler and a local log. No particular AI provider or model is required.
+**Yes, if it can run local commands on your computer.** Preferences use JSON and every backend offers read-only structured diagnostics. Windows uses PowerShell and Task Scheduler; macOS/Linux use Python and per-user startup entries. No particular AI provider or model is required.
 
-This is currently **scriptable, not fully unattended**. An agent running without administrator privileges needs you to approve elevation or run the installation command yourself. The widget also needs an unlocked Windows desktop. A cloud-only agent, a headless CI runner, or an agent without access to your PC cannot complete the desktop setup by itself.
+This is **scriptable, not universally unattended**. Windows requires human-approved elevation; macOS/Linux run as the normal user but may need Python/Tk installed first. The widget needs a graphical desktop. A cloud-only agent or a headless runner cannot verify the user's desktop or next login.
 
 You can give your agent this prompt:
 
-> Set up Compact Task Manager from https://github.com/omoladeodetara/compact-task-manager on this PC. Read its README and scripts first. Check Windows version, architecture, PowerShell version, and whether your session has administrator privileges. Use the default upper-right position unless I specify another. Run the tests, then install for my Windows account. Let me approve any required administrator prompt; do not bypass security controls. Verify a fresh scheduled run and, if you can inspect the desktop, confirm dark Performance Summary view. Tell me what you verified, what remains untested, and how to uninstall it.
+> Set up Compact Task Manager from https://github.com/omoladeodetara/compact-task-manager on this computer. Read the README and choose the backend for my operating system. Run its diagnostic command first and inspect the JSON next action. Use the default position unless I specify another. Install only for my account; on Windows let me approve elevation, and on macOS/Linux do not use sudo. Do not bypass security controls or silently install system packages. Start the widget, verify a fresh diagnostic result, and visually inspect it if you can. Tell me which metrics are supported, what you verified, what remains untested, and how to uninstall it.
 
-### Agent setup checklist
+### Windows agent setup checklist
 
 1. **Check the environment.** Run `Diagnose.ps1` and read its JSON report, then use the compatibility table below. Installation requires native 64-bit Windows PowerShell 5.1, not merely any shell named PowerShell. Elevate as the intended Windows user, not a different administrator account.
 2. **Inspect before running.** Read `Install.ps1`, `src/Start-CompactTaskManager.ps1`, `src/Common.ps1`, and `Uninstall.ps1`. Run `tests/Test.ps1`; these checks do not install anything or exercise the desktop.
@@ -98,20 +146,20 @@ A completed fresh run with result `0` and a matching `SUCCESS` log means the hel
 
 ## Does it work across operating systems?
 
-**No. This implementation automates Windows Task Manager; it is not a cross-platform system monitor.** It depends on Windows Task Scheduler, Windows UI Automation, Win32 window/input APIs, and Task Manager's settings and controls. Installing PowerShell on another OS does not provide those components.
+**Yes, through separate backends.** The native Task Manager automation remains Windows-specific. macOS and Linux use the new Python/Tk monitor with the shared setup/diagnostic command interface; they do not require Windows APIs or PowerShell.
 
 | Platform | Status |
 | --- | --- |
 | Windows 11 22H2 or newer, x64 | Intended target. Original workflow tested on build 26200; generalized installer and other builds need further testing. |
 | Windows 11 ARM64 | Not verified or supported by this release. |
 | Windows 10 and older | Unsupported; the legacy Task Manager has different UI and theme behavior. |
-| macOS | Unsupported. Activity Monitor would require a separate implementation. |
-| Linux | Unsupported. Monitoring UI and startup integration would require a separate implementation. |
+| macOS with Python 3.10+ and Aqua Tk | Experimental portable widget; CI logic/metrics tests, manual desktop/login validation still needed. |
+| Linux desktop with Python 3.10+, Tk, X11/XWayland | Experimental portable widget; CI logic/metrics and real Xvfb GUI lifecycle tests. Actual desktop/login validation still needed. |
 | WSL, Windows Server, or headless environments | Unsupported deployment environments for this desktop helper. |
 
-Agents can help adapt the idea to another OS, but that would be new developmentâ€”not an installation option this repository already provides.
+CPU/memory/disk/network monitoring is shared across the portable platforms. GPU parity is incomplete: this release supports optional Linux NVIDIA utilization but not Apple Silicon, AMD, or Intel GPU sensors. Missing GPU data is labeled unavailable, never fabricated.
 
-## Requirements
+## Windows requirements
 
 - Windows 11 22H2 or newer, x64, with the modern Task Manager.
 - Windows PowerShell 5.1 (included with Windows).
@@ -120,7 +168,7 @@ Agents can help adapt the idea to another OS, but that would be new developmentâ
 
 The original workflow was tested on Windows 11 build 26200. Other Windows builds, languages, ARM64, and mixed-DPI layouts have not been verified. This is an experimental v0.1 release; Task Manager's UI and settings format are not stable public APIs.
 
-## Install
+## Windows installation
 
 Download and extract the repository, or clone it:
 
@@ -141,7 +189,7 @@ The installer copies executable scripts into an administrator-protected subdirec
 
 The helper gracefully closes an existing Task Manager instance before reopening it, so dark mode and the Performance start page are applied consistently. It does not stop any applications listed inside Task Manager.
 
-## Position and size
+## Windows position and size
 
 Edit `%USERPROFILE%\CompactTaskManager\config.json`:
 
@@ -167,7 +215,7 @@ $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 Start-ScheduledTask -TaskName "Compact Task Manager ($sid)"
 ```
 
-## Uninstall
+## Windows uninstall
 
 From an elevated 64-bit Windows PowerShell window, run `Uninstall.ps1` in this checkout, or the installed copy:
 
@@ -204,7 +252,16 @@ The helper finds controls by automation ID, verifies the click target's process,
 .\tests\Test.ps1
 ```
 
-Tests cover PowerShell syntax, config validation, and placement on screens with negative coordinates or insufficient room. GitHub Actions runs these checks on Windows. CI does **not** validate desktop clicks or install elevated tasks; use the [manual test checklist](CONTRIBUTING.md) for those.
+Portable tests (use a development virtual environment):
+
+```sh
+python3 -m pip install -r requirements-portable.txt
+python3 -m unittest discover -s tests -p 'test_portable.py' -v
+# Linux, with Tk and Xvfb installed:
+xvfb-run -a python3 -m tests.smoke_portable
+```
+
+Windows tests cover PowerShell syntax, config validation, diagnostics, and placement. Portable tests cover configuration, read-only diagnostics, process evidence, startup serialization, lifecycle behavior in temporary directories, and actual psutil metrics. Linux CI also opens and closes a real Tk window under Xvfb, requiring live graph draws and saved state. CI does **not** validate Windows desktop clicks, macOS visual appearance, or real user login startup; use the [manual test checklist](CONTRIBUTING.md) for those.
 
 Only the reviewed documentation screenshots in `docs/images/` are committed. UI dumps, user settings, logs, and other captures remain excluded. The distributed helper and diagnostic command do not capture screenshots or send network requests.
 
